@@ -68,96 +68,40 @@ def update_task(device_id, jwt_token, mobile, duration):
     except Exception as e:
         return {"message": f"API request failed: {str(e)}"}
 
-# Add CSS and animation for login and device pages
-def add_css():
-    st.markdown("""
+# Injecting CSS styles at the top
+st.markdown("""
     <style>
-    /* Common CSS for both pages */
-    body {
-        background-color: #f0f2f6;
-        color: #333;
-    }
-    h1 {
-        color: #333;
-        font-size: 3rem;
+    .login-title {
         text-align: center;
+        font-size: 24px;
+        margin-bottom: 20px;
     }
-    .stTextInput > div > div {
-        margin-bottom: 1rem;
+    .device-name {
+        text-align: center;
+        font-size: 18px;
+        margin: 10px 0;
     }
-
-    /* Center the login form */
-    .login-container {
+    .button-container {
         display: flex;
         justify-content: center;
-        align-items: center;
-        height: 80vh;
-        flex-direction: column;
-    }
-
-    /* Login button animation */
-    .login-button {
-        background-color: #4CAF50;
-        border: none;
-        color: white;
-        padding: 15px 32px;
-        text-align: center;
-        text-decoration: none;
-        display: inline-block;
-        font-size: 16px;
-        margin: 4px 2px;
-        cursor: pointer;
-        transition: background-color 0.3s ease-in-out, transform 0.3s ease-in-out;
-    }
-
-    .login-button:hover {
-        background-color: #45a049;
-        transform: scale(1.05);
-    }
-
-    /* Device page buttons */
-    .device-button {
-        padding: 10px 20px;
-        font-size: 1.2rem;
-        color: white;
-        border: none;
-        cursor: pointer;
-        margin: 10px;
-        transition: background-color 0.3s ease-in-out, transform 0.3s ease-in-out;
-    }
-
-    .start-button {
-        background-color: #28a745;
-    }
-
-    .stop-button {
-        background-color: #dc3545;
-    }
-
-    .device-button:hover {
-        transform: scale(1.05);
-    }
-
-    .device-list {
-        text-align: center;
-        font-size: 1.2rem;
+        gap: 10px;
     }
     </style>
-    """, unsafe_allow_html=True)
+""", unsafe_allow_html=True)
 
 # Function to handle the login page UI and interaction
 def login_page():
-    add_css()  # Apply CSS
-    st.markdown('<div class="login-container">', unsafe_allow_html=True)
-    st.title("Robo Rakhwala")
+    st.markdown("<div class='login-title'>Robo Rakhwala</div>", unsafe_allow_html=True)
+    st.markdown("<h3 style='text-align: center;'>Login to your account</h3>", unsafe_allow_html=True)
 
-    # Input fields for mobile number and password
-    mobile = st.text_input("Mobile Number")
-    password = st.text_input("Password", type="password")
-    login_button = st.button("Login", key='login_button')
+    # Input fields for mobile number and password inside a form
+    with st.form("login_form"):
+        mobile = st.text_input("Mobile Number", placeholder="Enter your mobile number")
+        password = st.text_input("Password", type="password", placeholder="Enter your password")
+        login_button_clicked = st.form_submit_button("Login")  # Corrected to ensure button is inside the form
 
     # Perform login on button click
-    if login_button:
+    if login_button_clicked:
         auth_response = login_api_call(mobile, password)
 
         # If login is successful, save jwt_token and mobile to session state
@@ -165,17 +109,12 @@ def login_page():
             st.session_state['jwt_token'] = auth_response['jwt_token']
             st.session_state['mobile'] = mobile
             st.success("Login Successful! Redirecting to IoT device list...")
-
-            # Redirect to device list page
             st.rerun()
         else:
             st.error(auth_response.get('message', 'Login failed'))
 
-    st.markdown('</div>', unsafe_allow_html=True)
-
 # Function to display the IoT devices after login and provide start/stop controls
 def iot_device_page():
-    add_css()  # Apply CSS
     st.title("Your Registered Devices")
 
     # Get mobile and jwt_token from session state
@@ -201,30 +140,37 @@ def iot_device_page():
                     # Get the status from the `get_task` API response
                     device_status = next((status['action'] for status in status_response if status['id'] == device_id), 'UNKNOWN')
 
-                    st.write(f"Device: {display_name} (Status: {device_status})")
+                    st.markdown(f"<div class='device-name'>Device: {display_name} (Status: {device_status})</div>", unsafe_allow_html=True)
 
                     # Display start and stop buttons for each device
                     col1, col2 = st.columns(2)
 
                     with col1:
-                        if st.button(f"Start {display_name}", key=f"start_{device_id}", css_class="device-button start-button"):
-                            start_response = update_task(device_id, jwt_token, mobile, duration=30)  # Start for 30 minutes
-                            st.success(start_response.get('message', 'Device started successfully!'))
-                            st.rerun()  # Reload the page after starting
+                        if device_status == 'STARTED':
+                            st.button(f"Start {display_name}", key=f"start_{device_id}", disabled=True)
+                            st.info(f"{display_name} is already started")
+                        else:
+                            if st.button(f"Start {display_name}", key=f"start_{device_id}"):
+                                start_response = update_task(device_id, jwt_token, mobile, duration=30)  # Start for 30 minutes
+                                st.success(start_response.get('message', 'Device started successfully!'))
+                                st.rerun()
 
                     with col2:
-                        if st.button(f"Stop {display_name}", key=f"stop_{device_id}", css_class="device-button stop-button"):
-                            stop_response = update_task(device_id, jwt_token, mobile, duration=0)  # Stop the device
-                            st.success(stop_response.get('message', 'Device stopped successfully!'))
-                            st.rerun()  # Reload the page after stopping
+                        if device_status == 'STOPPED':
+                            st.button(f"Stop {display_name}", key=f"stop_{device_id}", disabled=True)
+                            st.info(f"{display_name} is already stopped")
+                        else:
+                            if st.button(f"Stop {display_name}", key=f"stop_{device_id}"):
+                                stop_response = update_task(device_id, jwt_token, mobile, duration=0)  # Stop the device
+                                st.success(stop_response.get('message', 'Device stopped successfully!'))
+                                st.rerun()
 
-                    st.write("---")
+                    st.write("<br>", unsafe_allow_html=True)  # Add spacing between devices
         else:
             st.write("No IoT devices found or invalid response format.")
 
     # Provide a logout button
     if st.button("Logout"):
-        # Clear session state on logout safely
         if 'jwt_token' in st.session_state:
             del st.session_state['jwt_token']
         if 'mobile' in st.session_state:
@@ -243,4 +189,3 @@ def main():
 # Run the app
 if __name__ == "__main__":
     main()
-
